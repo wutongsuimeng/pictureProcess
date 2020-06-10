@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+{% load staticfiles %}
+<head>
+    <meta charset="UTF-8">
+    <title>图像处理系统</title>
+    <script src="/frontend/static/js/vue.js"></script>
+    <script src="/frontend/static/js/element-ui.js"></script>
+    <script src="/frontend/static/js/axios.min.js"></script>
+    <link href="/frontend/static/css/element-ui.css" rel="stylesheet">
+    <script src="/frontend/static/js/jquery.js"></script>
+    <link href="/frontend/static/css/index.css" rel="stylesheet">
+
+
+</head>
+
+<body>
+
+<div id="app">
+    <el-container>
+        <el-header>
+            <el-menu :default-active="activeIndex2" class="el-menu-demo" mode="horizontal" @select="handleSelect"
+                     background-color="#545c64" text-color="#fff" active-text-color="#ffd04b">
+                <el-submenu index="1">
+                    <template slot="title">文件</template>
+                    <el-menu-item index="1-1" @click="createFileDialogVisible=true">新建</el-menu-item>
+                    <el-menu-item index="1-2">
+                        <el-upload
+                                class="upload-demo"
+                                action="/upload_file/"
+                                :show-file-list="false"
+                                :on-success="handleAvatarSuccess">
+                            上传
+                        </el-upload>
+                    </el-menu-item>
+                    <el-menu-item index="1-3" @click="saveImage">保存</el-menu-item>
+                </el-submenu>
+                <el-submenu index="2" >
+                    <template slot="title">编辑</template>
+                    <el-menu-item index="2-1" @click="undo">撤销</el-menu-item>
+                    <el-menu-item index="2-2" @click="redo">重做</el-menu-item>
+                    <el-menu-item index="2-3" @click="editCanvas('edit')">编辑</el-menu-item>
+                </el-submenu>
+                <el-submenu index="3">
+                    <template slot="title">图像变换</template>
+                    <el-menu-item index="3-1" @click="resize">图像大小</el-menu-item>
+                    <el-menu-item index="3-2" @click="cutPicture">裁剪</el-menu-item>
+                    <el-menu-item index="3-3" @click="rotate">旋转</el-menu-item>
+                    <el-menu-item index="3-4" @click="rgbToGray">灰度化</el-menu-item>
+                    <el-submenu index="3-5">
+                        <template slot="title">二值化</template>
+                        <el-menu-item index="3-5-1" @click="threshold2">简单二值化</el-menu-item>
+                        <el-menu-item index="3-5-2" @click="adaptiveThreshold">自适应阈值</el-menu-item>
+                        <el-menu-item index="3-5-3" @click="thresholdOtsu">Otsu's阈值</el-menu-item>
+                    </el-submenu>
+
+                </el-submenu>
+                <el-submenu index="4">
+                    <template slot="title">滤镜</template>
+                    <el-submenu index="4-1">
+                        <template slot="title">模糊</template>
+                        <el-menu-item index="4-1-1" @click="smoothBlur">均值模糊</el-menu-item>
+                        <el-menu-item index="4-1-2" @click="smoothGaussianBlur">高斯模糊</el-menu-item>
+                        <el-menu-item index="4-1-3" @click="smoothMedianBlur">中值模糊</el-menu-item>
+                        <el-menu-item index="4-1-4" @click="smoothBilateralFilter">双边模糊</el-menu-item>
+                    </el-submenu>
+                    <el-submenu index="4-2">
+                        <template slot="title">对比度增强</template>
+                        <el-menu-item index="4-2-1" @click="contrastLinear">线性变换</el-menu-item>
+                        <el-menu-item index="4-2-2" @click="contrastGamma">伽马变换</el-menu-item>
+                        <el-menu-item index="4-2-3" @click="contrastEqualize">全局直方图均衡化</el-menu-item>
+                        <el-menu-item index="4-2-4" @click="contrastClahe">限制对比度自适应直方图均衡化</el-menu-item>
+                    </el-submenu>
+                </el-submenu>
+                <el-submenu index="5">
+                    <template slot="title">边缘锐化</template>
+                    <el-menu-item index="5-1" @click="roberts">Roberts算子</el-menu-item>
+                    <el-menu-item index="5-2" @click="prewitt">Prewitt算子</el-menu-item>
+                    <el-menu-item index="5-3" @click="sobel">Sobel算子</el-menu-item>
+                    <el-menu-item index="5-4" @click="laplacian">Laplacian算子</el-menu-item>
+                    <el-menu-item index="5-5" @click="canny">Canny算子</el-menu-item>
+                </el-submenu>
+                <el-menu-item @click="fastNeuralStyle">风格化处理</el-menu-item>
+
+            </el-menu>
+
+        </el-header>
+        <el-container>
+
+            <el-main v-loading="loading"
+                     element-loading-text="拼命加载中"
+                     element-loading-spinner="el-icon-loading">
+                <el-dialog
+                        title="新建文件"
+                        :visible.sync="createFileDialogVisible"
+                        width="25%"
+                        center>
+                    <el-form>
+                        <el-form-item label="名字" label-width="20%">
+                            <el-input placeholder="请输入内容" v-model="fileData.fileName"></el-input>
+                        </el-form-item>
+                        <el-form-item label="高度" label-width="20%">
+                            <el-input placeholder="请输入内容" v-model="fileData.height"></el-input>
+                        </el-form-item>
+                        <el-form-item label="宽度" label-width="20%">
+                            <el-input placeholder="请输入内容" v-model="fileData.width"></el-input>
+                        </el-form-item>
+                        <el-form-item label="背景色" label-width="20%">
+                            <el-color-picker
+                                    v-model="fileData.color"
+                                    show-alpha
+                                    size="medium">
+                            </el-color-picker>
+                        </el-form-item>
+                    </el-form>
+                    <span slot="footer" class="dialog-footer">
+                            <el-button @click="createFileDialogVisible = false">取 消</el-button>
+                            <el-button type="primary" @click="createFile">确 定</el-button>
+                        </span>
+                </el-dialog>
+                <div id="myCanvas">
+                    <canvas id="pictureCanvas"></canvas>
+                </div>
+            </el-main>
+            <el-aside width="23%">
+                <el-card class="box-card">
+                    <div slot="header" class="clearfix">
+                        <span>操作面板</span>
+                    </div>
+                    <div>
+                        <el-form>
+                            <el-form-item v-if="formData!==undefined" v-for="(item,index) in formData.formItemList"
+                                          :label="item.label" v-bind:key="item.key">
+                                <el-input v-if="item.type==='input' " v-model="item.name" autofocus="true" @change="inputChange($event,item.key)"></el-input>
+                                <el-select v-if="item.type==='select'" v-model="item.name" placeholder="请选择"
+                                           @change="handleSelectChange($event,item.tagSelect)">
+                                    <el-option
+                                            v-for="o in item.options"
+                                            :key="o.value"
+                                            :label="o.label"
+                                            :value="o.value">
+                                    </el-option>
+                                </el-select>
+
+                                <el-color-picker
+                                        v-if="item.type==='colorPicker' "
+                                        v-model="item.colorPick"
+                                        show-alpha
+                                        :predefine="item.predefineColors"
+                                        size="mini"
+                                        @change="handleChangeColor($event,item.name)">
+                                </el-color-picker>
+
+                                <el-button v-if="item.type==='button' " @click="clickToResult(item.clickToDo)">
+                                    ${item.text}
+                                </el-button>
+                                <div class="block">
+                                    <span v-if="item.type==='slider' " class="demonstration"> ${item.spanText}</span>
+                                    <el-slider
+                                            v-if="item.type==='slider' "
+                                            @change="handleChangeWidth($event,formData.formItemList[0].name)"
+                                            v-model="item.name"
+                                            :min="item.min"
+                                            :max="item.max"
+                                            :show-input=true
+                                            :step="item.step"
+                                            :marks="item.marks"
+                                    >
+                                    </el-slider>
+                                </div>
+                                <el-button v-if="item.type==='submit' " v-model="item.name"
+                                           @click="getActionResult(item.clickUrl)">提交
+                                </el-button>
+                                    <el-image
+                                            v-if="item.type==='styleImage' "
+                                            style="width: 100%; height: 100%"
+                                            :src="item.src"
+                                            fit="scale-down"
+                                    ></el-image>
+
+                            </el-form-item>
+
+                        </el-form>
+                    </div>
+                </el-card>
+            </el-aside>
+        </el-container>
+    </el-container>
+</div>
+
+
+</body>
+
+<script src="/frontend/static/js/index.js"></script>
+</html>
